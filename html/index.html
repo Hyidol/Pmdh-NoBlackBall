@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>🐦</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<header align="center">
+    <h1>接球积分小游戏</h1>
+    <h2>游戏介绍</h2>
+    <p>键盘左右控制，接到红球/紫球加分，接到黑球扣分，分值按照接球准确度和球大小而定，通关最低1000分，1分钟限时。<p>
+</header>
+<body>
+<!--设置背景方法一：<div id="background" ><img src="../picture/背景.gif" width="100%" height="100%"/></div>-->
+<textarea id="log"></textarea>
+<canvas id="canvas" width="1080" height="720"></canvas>
+<script src="../js/utils.js"></script>
+<script src="../js/ball.js"></script>
+<script>
+
+    window.onload = function () {
+        var canvas = document.getElementById('canvas'),
+            context = canvas.getContext('2d'),
+            mouse = utils.captureMouse(canvas),  //让鼠标控制小人
+            log = document.getElementById('log');  //在控制窗口显示60秒倒计时
+
+        var score = 0,  //记录接球得分
+            flag = 0,  //记录是否挑战成功
+            ax = 0,  //记录键盘按键时候的水平加速度
+            ay = 0;  //记录键盘按键时候的竖直加速度
+
+        var ball = createBall(),
+            gravity = 0.05,  //重力
+            drag = 0.5; //阻力
+
+        var person1 = new Ball();
+            person1.color = "#ffdd00";
+            person1.radius = 20;
+            person1.x = canvas.width / 2;
+            person1.y = canvas.height - person1.radius - 25;  // 25是草地高度
+
+        var person2 = new Ball();
+            person2.color = "#bbbbbb";
+            person2.radius = 50;
+            person2.x = canvas.width / 2;
+            person2.y = canvas.height - person2.radius - 25;
+
+        /* 控制台显示计时器 */
+        //每隔1秒记时间，共1分钟，注意单纯的time++行不通。
+        for (var i = 1; i <= 60; i++) {
+            (function (time) {
+                setTimeout(() => {
+                    console.log(time);
+                    if(time === 60)
+                        flag = 1;
+                }, 1000 * time);
+            })(i);
+        }
+
+        /* 人的事件监听器 */
+        window.addEventListener('keydown', function (event) {
+            switch (event.keyCode) {
+                case 37:
+                    ax = -0.2;  //初始向左加速度
+                    break;
+                case 39:
+                    ax = 0.2;  //初始向右加速度
+                    break;
+            }
+        }, false);
+
+        window.addEventListener('keyup', function () {
+            ax = 0;
+            ay = 0;
+        }, false);
+
+
+        /* 创建小球 */
+        function createBall () {
+            var ball = new Ball(Math.random() * 50 + 10);  //控制球随机大小10~60
+            ball.color = colourBall();  //控制球随机颜色
+            ball.x = Math.random() * canvas.width * 3/4 + ball.radius;  //让球出现画布的3/4部分出现（不挡住太阳）并且不要有半个球在外面即可
+            ball.y = Math.random() * 70 + 10;  //定义小球出现的初始纵向坐标，让小球从天空中出现而不是画布最上端（距离上端10~80）
+            ball.vx = 0;
+            ball.vy = 0;
+            ball.draw(context);
+            return ball;
+        }
+
+        /* 有概率性地改变小球颜色 */
+        function colourBall() {
+            //random的值介于0~1之间
+            if(Math.random() > 0.6 && gravity > 0.2) //后半句是控制黑球稍微晚点出现
+                return "#000";  //扣分的黑球
+            else if(Math.random() < 0.1 && gravity > 0.8)  //后半句是控制紫球更晚些出现
+                return "#ff00fc"  //彩蛋的紫球
+            else
+                return "#ff0000";  //加分的红球
+        }
+
+        /* 碰撞检测 */
+        function cashDetection(person,ball) {
+            var dx = person.x - ball.x;
+            var dy = person.y - ball.y;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            var min_dist = person.radius + ball.radius;
+            //开始判断
+            if(dist <= min_dist){
+                return dist;
+            }
+            else{
+                return false;
+            }
+        }
+
+        /* 碰撞算分 */
+        function cashScore(ball,dist) {
+            var changeScore = 0;
+
+            //按球色/球大小
+            if(ball.color === "#000")  // 碰上一个黑球扣分（数值以球大小为准）
+                changeScore -= ball.radius;
+            else if(ball.color === "#ff00fc")  // 碰上一个紫球得分（数值以球大小为准）
+                changeScore += ball.radius * 50;
+            else if(ball.color === "#ff0000")  // 碰上一个红球得分（数值以球大小为准）
+                changeScore += ball.radius;
+
+            //按接球准确率
+            if(dist < ball.radius/100)
+                changeScore += dist * 10;
+            else if(dist < ball.radius/50)
+                changeScore += dist * 5;
+            else if(dist < ball.radius/10)
+                changeScore += dist * 1;
+            else
+                changeScore += dist * 0.1;
+
+            return changeScore;
+        }
+
+        (function drawFrame () {
+            window.requestAnimationFrame(drawFrame, canvas);
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            /* 球 */
+            ball.y += ball.vy;
+            ball.vy += gravity;
+            gravity += 0.0001;  //让小球掉落的速度越来越快，由于需要躲避会出现扣分的黑球，游戏难度也会随着时间增加而增加
+            ball.draw(context);
+
+            /* 键盘控制小人-1 */
+            var dist1 = cashDetection(person1,ball);
+            person1.vx += ax;  //小人均匀提速，加速度由键盘按下时长决定
+            if(ax===0 && person1.vx>0)
+                person1.vx -= drag;  //在不按下时候小人向左慢慢减速，加上阻力变量drag
+            if(ax===0 && person1.vx<0)
+                person1.vx += drag;  //在不按下时候小人向右慢慢减速，加上阻力变量drag
+            //边界控制：遇上画布则反弹
+            if((person1.x - person1.radius) < 0 || (person1.x + person1.radius) > canvas.width){
+                person1.vx = -person1.vx; //小人碰撞到画布边界时被弹开,并适当减速，这里设置减为1/4
+            }
+            person1.x += person1.vx;
+            person1.draw(context);
+
+            /* 鼠标控制小人-2 */
+            var dist2 = cashDetection(person2,ball);
+            person2.x = mouse.x;
+            person2.draw(context);
+
+            /* 实时算分显示 */
+            if(dist1!==false){  //如果碰撞上了键控小人
+                score += cashScore(ball,dist1);  //按照球色、球大小、接球准确率计算分数
+                ball = createBall();
+            }
+            if(dist2!==false){  //如果碰撞上了鼠控小人
+                score += cashScore(ball,dist2);  //按照球色、球大小、接球准确率计算分数
+                ball = createBall();
+            }
+            if(ball.y > canvas.height){  //如果小球掉出画布外
+                ball = createBall();
+            }
+            log.value = score; //在左下角框中显示
+
+            /* 成功后弹窗 */
+            if(Math.floor(score) >= 1000){
+                alert("恭喜，您的分数为：" + Math.floor(score) + "。\n通关成功！");
+                score = 0;
+            }
+            if(flag === 1 && score < 1000){
+                alert("抱歉时间已到，您的分数为：" + Math.floor(score) + "分。\n最低通关分数为1000分，请按f5再来！");
+                flag = 0;
+                score = 0;
+            }
+
+        }());
+    };
+</script>
+</body>
+<footer align="center">
+    <p> Code：<a href="https://github.com/Hyidol/FengNu-Person">GitHub</a> || Author：Hyidol || Learn from：ch05-08-acceleration-3 || 04-distance-1</p>
+</footer>
+</html>

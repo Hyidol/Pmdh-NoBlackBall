@@ -1,0 +1,18 @@
+body{
+    background: #000000;
+}
+
+header{
+    color: #bbbbbb;
+}
+
+/* 设置背景方法二：作为画布背景 */
+#canvas{
+    color: skyblue;
+    background: url("../image/背景.gif");
+}
+
+footer{
+    color: #bbbbbb;
+    letter-spacing: 3px;
+}
